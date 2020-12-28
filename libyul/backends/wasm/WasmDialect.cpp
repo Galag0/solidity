@@ -195,7 +195,7 @@ WasmDialect const& WasmDialect::instance()
 
 void WasmDialect::addEthereumExternals()
 {
-	static vector<External> externals({
+	static vector<External> externals{
 		{"getAddress", {c_i32ptr}, {}},
 		{"getExternalBalance", {c_i32ptr, c_i32ptr}, {}},
 		{"getBlockHash", {c_i64, c_i32ptr}, {c_i32}},
@@ -228,13 +228,24 @@ void WasmDialect::addEthereumExternals()
 		{"returnDataCopy", {c_i32ptr, c_i32, c_i32}, {}},
 		{"selfDestruct", {c_i32ptr}, {}, ControlFlowSideEffects{true, false}},
 		{"getBlockTimestamp", {}, {c_i64}}
-	});
-
+	};
 	for (External const& ext: externals)
 	{
-		BuiltinFunction& f = addBuiltinFunction("eth.", ext.name, ext.parameters, ext.returns, ext.controlFlowSideEffects);
+		YulString name{"eth." + ext.name};
+		BuiltinFunction& f = m_functions[name];
+		f.name = name;
+		for (string const& p: ext.parameters)
+			f.parameters.emplace_back(YulString(p));
+		for (string const& p: ext.returns)
+			f.returns.emplace_back(YulString(p));
+		// TODO some of them are side effect free.
+		f.sideEffects = SideEffects::worst();
 		f.sideEffects.cannotLoop = true;
 		f.sideEffects.movableApartFromEffects = !ext.controlFlowSideEffects.terminates;
+		f.controlFlowSideEffects = ext.controlFlowSideEffects;
+		f.isMSize = false;
+		f.literalArguments.clear();
+
 		static set<string> const writesToStorage{
 			"storageStore",
 			"call",
@@ -252,46 +263,32 @@ void WasmDialect::addEthereumExternals()
 
 void WasmDialect::addDebugExternals()
 {
-	static vector<External> debugExternals({
+	static vector<External> debugExternals{
 		{"print32", {c_i32}, {}},
 		{"print64", {c_i64}, {}},
 		{"printMem", {c_i32, c_i32}, {}},
 		{"printMemHex", {c_i32, c_i32}, {}},
 		{"printStorage", {c_i32}, {}},
 		{"printStorageHex", {c_i32}, {}},
-	});
+	};
 
 	for (External const& ext: debugExternals)
 	{
-		BuiltinFunction& f
-			= addBuiltinFunction("debug.", ext.name, ext.parameters, ext.returns, ext.controlFlowSideEffects);
+		YulString name{"debug." + ext.name};
+		BuiltinFunction& f = m_functions[name];
+		f.name = name;
+		for (string const& p: ext.parameters)
+			f.parameters.emplace_back(YulString(p));
+		for (string const& p: ext.returns)
+			f.returns.emplace_back(YulString(p));
+		// TODO some of them are side effect free.
+		f.sideEffects = SideEffects::worst();
 		f.sideEffects.cannotLoop = true;
 		f.sideEffects.movableApartFromEffects = !ext.controlFlowSideEffects.terminates;
+		f.controlFlowSideEffects = ext.controlFlowSideEffects;
+		f.isMSize = false;
+		f.literalArguments.clear();
 	}
-}
-
-BuiltinFunction& WasmDialect::addBuiltinFunction(
-	string const& _prefix,
-	string const& _name,
-	vector<std::string> const& _params,
-	vector<std::string> const& _returns,
-	ControlFlowSideEffects _sideEffects
-)
-{
-	YulString name{_prefix + _name};
-	BuiltinFunction& f = m_functions[name];
-	f.name = name;
-	for (string const& p: _params)
-		f.parameters.emplace_back(YulString(p));
-	for (string const& p: _returns)
-		f.returns.emplace_back(YulString(p));
-	// TODO some of them are side effect free.
-	f.sideEffects = SideEffects::worst();
-	f.controlFlowSideEffects = _sideEffects;
-	f.isMSize = false;
-	f.literalArguments.clear();
-
-	return f;
 }
 
 void WasmDialect::addFunction(
