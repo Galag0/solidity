@@ -263,7 +263,7 @@ void WasmDialect::addEthereumExternals()
 
 void WasmDialect::addDebugExternals()
 {
-	static vector<External> debugExternals{
+	vector<External> debugExternals{
 		{"print32", {c_i32}, {}},
 		{"print64", {c_i64}, {}},
 		{"printMem", {c_i32, c_i32}, {}},
